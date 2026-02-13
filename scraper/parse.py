@@ -1,33 +1,76 @@
-import logging
 from bs4 import BeautifulSoup
+import logging
 
-logger = logging.getLogger(__name__)
-URL_IDEALISTA = "https://www.idealista.com"
+def parse_html(html_content):
+    """Convierte el HTML en objeto BeautifulSoup"""
+    return BeautifulSoup(html_content, "html.parser")
 
-def parse_html(html, div_class="item-info-container"):
-    soup = BeautifulSoup(html, "html.parser")
-    return soup.find_all("div", class_=div_class)
+def extract_data(soup):
+    """
+    Extrae la lista de pisos del objeto BeautifulSoup.
+    Devuelve una lista de diccionarios.
+    """
+    properties = []
+    
+    # Buscamos todos los artículos que sean anuncios
+    # Idealista usa <article class="item ...">
+    articles = soup.find_all("article", class_="item")
+    
+    if not articles:
+        # A veces Idealista cambia la clase o bloquea
+        return []
 
-def extract_data(divs):
-    results = []
-    for div in divs:
+    for article in articles:
         try:
-            chars = div.find("div", class_="item-detail-char").find_all("span", class_="item-detail")
-            rooms = chars[0].get_text().split()[0]
-            size_m2 = chars[1].get_text().split()[0]
-            description = chars[2].get_text().strip()
-            price = div.find("span", class_="item-price h2-simulated").get_text().split("€")[0].strip()
-            location = div.find("a", class_="item-link").get_text().replace("\n", "").split(",")[:2]
-            location = ", ".join([s.strip() for s in location])
-            link = URL_IDEALISTA + div.find("a", class_="item-link")["href"]
-            results.append({
-                "price": price,
-                "location": location,
-                "size_m2": size_m2,
-                "rooms": rooms,
-                "description": description,
-                "link": link
-            })
+            # 1. Ignorar publicidad disfrazada
+            if "adv" in article.get("class", []) or "paid" in article.get("class", []):
+                continue
+            
+            # 2. Extracción segura de datos
+            item = {}
+            
+            # --- Link ---
+            link_tag = article.find("a", class_="item-link")
+            if not link_tag:
+                continue # Si no tiene link, no es un piso válido
+            item["link"] = "https://www.idealista.com" + link_tag.get("href")
+            item["description"] = link_tag.get("title", "Sin título")
+
+            # --- Precio ---
+            price_tag = article.find("span", class_="item-price")
+            if price_tag:
+                item["price"] = price_tag.text.strip()
+            else:
+                item["price"] = "Consultar"
+
+            # --- Detalles (Habitaciones, m2, planta) ---
+            # Idealista suele poner esto en spans dentro de item-detail-char
+            details = article.find_all("span", class_="item-detail")
+            
+            # Valores por defecto
+            item["rooms"] = "?"
+            item["size_m2"] = "?"
+            item["floor"] = "?"
+
+            for det in details:
+                text = det.text.strip().lower()
+                if "hab" in text or "dorm" in text:
+                    item["rooms"] = text
+                elif "m²" in text:
+                    item["size_m2"] = text
+                elif "planta" in text or "bajo" in text:
+                    item["floor"] = text
+
+            # --- Localidad / Barrio ---
+            # A veces está en el título, a veces en un tag específico
+            # Intentamos buscar la zona
+            item["location"] = item["description"] # Fallback
+
+            properties.append(item)
+
         except Exception as e:
-            logger.warning(f"Error al parsear div: {e}")
-    return results
+            # Si falla un piso concreto, lo ignoramos pero no paramos el script
+            # logging.warning(f"Error parseando un anuncio: {e}") # Descomenta para depurar
+            continue
+
+    return properties

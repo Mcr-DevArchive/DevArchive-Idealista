@@ -1,6 +1,22 @@
 # 🏠 Idealista Scraper
 
-Un scraper modular en Python para Idealista, con notificación opcional por Telegram.
+Un scraper modular en Python para Idealista, con notificación opcional por Telegram. 
+
+## 🧟 Modo Anti-Bloqueo (Zombie Mode)
+
+Para evitar que Idealista detecte el bot y bloquee tu IP, este script utiliza una técnica avanzada: **se conecta a una sesión de Chrome real** en lugar de abrir una nueva.
+
+### ¿Cómo funciona?
+1. El script cerrará automáticamente tus ventanas de Chrome abiertas.
+2. Abrirá una nueva ventana de Chrome en "modo depuración" (Puerto 9222).
+3. **Creará una carpeta de perfil** en `C:\selenium\ChromeProfile`.
+
+### ¿Por qué crea esta carpeta?
+- **Persistencia de Sesión:** Al usar un perfil guardado en `C:\selenium`, Chrome recuerda tus cookies y datos de navegación.
+- **Evita Captchas:** Si ya has resuelto un captcha una vez, Idealista te recordará y no te lo pedirá de nuevo en cada ejecución.
+- **Huella Digital Humana:** Hace que el navegador parezca 100% legítimo, evitando baneos por comportamiento robótico.
+
+> **Nota:** Puedes borrar la carpeta `C:\selenium` en cualquier momento si quieres reiniciar la "memoria" del navegador, pero tendrás que resolver los captchas de nuevo.
 
 ## 🚀 Características
 - Usa Selenium + BeautifulSoup para scrapear datos de inmuebles.
@@ -26,39 +42,34 @@ TELEGRAM_TOKEN=<tu_token_aqui>
 TELEGRAM_CHAT_ID=<tu_chat_id_aqui>
 CACHE_DIR=./cached_pages
 ```
-
 🚀 Uso
+El script funciona conectándose a una ventana de Chrome ya abierta (para evitar bloqueos).
 
-```bash
-python -m scraper.main --pages 1 2 3 4 5 --send-telegram
+1. Ejecución Básica (Escaneo único)
+```
+python -m scraper.main --url "TU_URL_DE_IDEALISTA" --send-telegram
+```
+Si no pasas la --url, el script te la pedirá de forma interactiva.
+
+2. Modo Vigilancia (Bucle Infinito)
+Escanea cada 30 minutos y avisa solo de los pisos nuevos.
+
+```
+python -m scraper.main --url "..." --pages 1 2 --send-telegram --loop 30
 ```
 
-Donde:
+Argumentos Disponibles
+- `--url "..."`: La URL de búsqueda de Idealista (con tus filtros).
+- `--pages 1 2 3`: Qué páginas escanear (por defecto solo la 1).
+- `--send-telegram`: Activa el envío de alertas.
+- `--loop X`: Repite el proceso cada X minutos.
+- `--clean`: Borra la caché de archivos HTML al terminar.
 
-- `--pages`: lista de páginas a scrapear.
-- `--send-telegram`: si se indica, enviará los resultados por Telegram.
+📂 Estructura del Proyecto
 
-🚀 Estructura
+- `scraper/main.py` → CLI Principal: Orquestación, bucles y argumentos.
+- `scraper/fetch.py` → Motor de Descarga: Gestiona Selenium y el bypass de Captcha.
+- `scraper/parse.py` → Parser: Extrae datos limpios con BeautifulSoup.
+- `scraper/notify.py` → Notificaciones: Envía mensajes a Telegram usando .env.
+- `scraper/history.py` → Memoria: Gestiona history.json para evitar duplicados.
 
-- `scraper/fetch.py` → descarga HTML con Selenium
-- `scraper/parse.py` → parsea los datos con BeautifulSoup
-- `scraper/notify.py` → envía mensajes por Telegram
-- `scraper/main.py → CLI principal
-
-# 🚀 Cómo inicializar un repositorio
-
-Cuando todos los archivos esten en la carpeta `idealista-scraper/`, hacer:
-
-```bash
-cd idealista-scraper
-git init
-git add .
-git commit -m "Proyecto inicial: scraper idealista modular con Telegram"
-```
-
-## Subirlo a GitHub
-
-```bash
-gh repo create idealista-scraper --public --source=. --remote=origin
-git push -u origin main
-```
